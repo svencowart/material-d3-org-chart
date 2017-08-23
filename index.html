@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" class="mdc-typography">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jedi Organizational Chart</title>
+  <link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+  <style>
+    html, body {
+      background-color: #fafafa;
+      margin: 0;
+    }
+    main {
+      width: 100vw;
+      height: 100vh;
+    }
+    .mdc-card {
+      background-color: #ffffff;
+      height: 124px;
+      width: 224px;
+      margin: 5px;
+    }
+    .chart-container {
+      position: relative;
+    }
+    .chart-nodes, .chart-lines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      overflow: visible;
+    }
+    .chart-nodes__nodes {
+      position: absolute;
+    }
+    .chart-lines {
+      z-index: 1;
+    }
+    .chart-nodes {
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="chart-container"></div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.10.0/d3.min.js"></script>
+  <script>
+    const width = document.getElementsByTagName('main')[0].clientWidth;
+    const height = document.getElementsByTagName('main')[0].clientHeight;
+    const treemap = d3.tree().size([width, height]);
+    const duration = 600;
+    const nodeWidth = 234;
+    const nodeHeight = 134;
+    let root = [];
+
+
+    d3.json('./data/jedi.json', data => {
+      root = d3.stratify()
+        .id(d => d._id)
+        .parentId(d => d.parentId)
+        (data);
+      renderChart(root);
+    });
+
+    function generateNode(id, name) {
+      return `
+        <div class="mdc-card">
+          <section class="mdc-card__primary">
+            <h3 class="mdc-card__title mdc-card__title--large">${ name }</h3>
+          </section>
+          <section class="mdc-card__supporting-text">
+          </section>
+          <section class="mdc-card__actions">
+            <button class="mdc-button mdc-button--compact ac__collapse-seat" data-node-id="${ id }">Toggle</button>
+            <!--<button class="mdc-button mdc-button--compact mdc-button--primary mdc-card__action ac__add-seat">Add Seat</button>-->
+            <!--<button class="mdc-button mdc-button--compact mdc-card__action">Remove Seat</button>-->
+          </section>
+        </div>
+      `;
+    }
+
+    function generateLine(path) {
+      return (d3.line()
+        .x(d => d.x)
+        .y(d => d.y))(path);
+    }
+
+    function renderChart(source) {
+      let treeData = treemap(source);
+      let nodes = treeData.descendants();
+      let links = treeData.descendants().slice(1);
+
+      /**
+       * Nodes
+       */
+      nodes.forEach(d => {
+        d.y = d.depth * nodeHeight;
+      });
+
+      let node = d3.select('.chart-container')
+        .append('div')
+        .attr('class', 'chart-nodes')
+        .selectAll('.chart-nodes')
+        .data(nodes);
+
+      let nodeEnter = node.enter()
+        .append('div')
+        .style('height', '134px')
+        .style('width', '234px')
+        .attr('class', 'chart-nodes__nodes')
+//        .attr('style', d => `transform: translate(${source.x * 2 - 117}px, ${source.y * 1.3 - 67}px`)
+        .attr('style', d => `transform: translate(${source.x}px, ${source.y}px`)
+        .html(d => generateNode(d.data._id, d.data.name))
+        .on('click', collapseSeatEventHandler);
+
+      let nodeUpdate = nodeEnter.merge(node);
+
+      nodeUpdate.transition()
+        .duration(duration)
+        .attr('style', d => `transform: translate(${d.x * 2 - 117}px, ${d.y * 1.3 - 67}px`);
+
+      let nodeExit = node.exit()
+        .transition()
+        .duration(duration)
+//        .attr('style', d => `transform: translate(${source.x * 2 - 117}px, ${source.y * 1.3 - 67}px`)
+        .attr('style', d => `transform: translate(${d.parent.x * 2 - 117}px, ${d.parent.y * 1.3 - 67}px`)
+        .remove();
+
+      /**
+       * Links
+       */
+      let link = d3.select('.chart-container')
+        .append('svg')
+        .attr('class', 'chart-lines')
+        .selectAll('line')
+        .data(links);
+
+      let linkEnter = link.enter()
+        .insert('path', 'g')
+        .attr('d', d => {
+          const coordinates = [
+            {x: source.x * 2, y: source.y * 1.3 + 62},
+            {x: source.x * 2, y: source.y * 1.3 + 91},
+            {x: source.x * 2, y: source.y * 1.3 - 91},
+            {x: source.x * 2, y: source.y * 1.3 - 62}
+          ];
+          return generateLine(coordinates);
+        })
+        .attr('fill', 'none')
+        .attr('stroke-width', 2)
+        .attr('stroke', '#dcdcdc');
+
+      let linkUpdate = linkEnter.merge(link);
+
+      linkUpdate.transition()
+        .duration(duration)
+        .attr('d', d => {
+          const coordinates = [
+            {x: d.parent.x * 2, y: d.parent.y * 1.3 + 62},
+            {x: d.parent.x * 2, y: d.parent.y * 1.3 + 91},
+            {x: d.x * 2, y: d.y * 1.3 - 91},
+            {x: d.x * 2, y: d.y * 1.3 - 62}
+          ];
+          return generateLine(coordinates);
+        });
+
+      let linkExit = link.exit()
+        .transition()
+        .duration(duration)
+        .attr('d', d => {
+          const coordinates = [
+            {x: source.x * 2, y: source.y * 1.3 + 62},
+            {x: source.x * 2, y: source.y * 1.3 + 91},
+            {x: d.parent.x * 2, y: d.parent.y * 1.3 - 91},
+            {x: d.parent.x * 2, y: d.parent.y * 1.3 - 62}
+          ];
+          return generateLine(coordinates);
+        })
+        .remove();
+    }
+
+
+
+//    document.onclick = e => {
+//      addSeatEventHandler(e);
+//      removeSeatEventHandler(e);
+//      collapseSeatEventHandler(e);
+//    }
+
+    function addSeatEventHandler(e) {
+      if (e.target.getAttribute('class') && e.target.getAttribute('class').indexOf('ac__add-seat') >= 0) {
+        console.log('add');
+      }
+    }
+
+    function removeSeatEventHandler(e) {
+      if (e.target.getAttribute('class') && e.target.getAttribute('class').indexOf('ac__remove-seat') >= 0) {
+        console.log('remove');
+      }
+    }
+
+    function collapseSeatEventHandler(d) {
+      if (d3.event.target.getAttribute('class') && d3.event.target.getAttribute('class').indexOf('ac__collapse-seat') >= 0) {
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        } else {
+          d.children = d._children;
+          d._children = null;
+        }
+        renderChart(d);
+//        collapseNodes(root);
+//        renderChart(root);
+      }
+    }
+
+    function collapseNodes(node) {
+      if (node.children) {
+        node._children = node.children;
+        node._children.forEach(collapseNodes)
+        node.children = null
+      }
+    }
+  </script>
+</body>
+</html>
