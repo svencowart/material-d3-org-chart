@@ -20,29 +20,29 @@
       width: 224px;
       margin: 5px;
     }
-    .chart-container {
+    .ac-chart {
       position: relative;
     }
-    .chart-nodes, .chart-lines {
+    .ac-chart__nodes, .ac-chart__links {
       position: absolute;
       top: 0;
       left: 0;
       overflow: visible;
     }
-    .chart-nodes__nodes {
-      position: absolute;
-    }
-    .chart-lines {
+    .ac-chart__links {
       z-index: 1;
     }
-    .chart-nodes {
+    .ac-chart__nodes {
       z-index: 2;
+    }
+    .ac-chart__node {
+      position: absolute;
     }
   </style>
 </head>
 <body>
   <main>
-    <div class="chart-container"></div>
+    <div class="ac-chart"></div>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.10.0/d3.min.js"></script>
@@ -50,6 +50,9 @@
     const width = document.getElementsByTagName('main')[0].clientWidth;
     const height = document.getElementsByTagName('main')[0].clientHeight;
     const treemap = d3.tree().size([width, height]);
+    const acChart = d3.select('.ac-chart');
+    const acChartNodes = acChart.append('div').attr('class', 'ac-chart_nodes');
+    const acChartLinks = acChart.append('svg').attr('class', 'ac-chart__links');
     const duration = 600;
     const nodeWidth = 234;
     const nodeHeight = 134;
@@ -73,7 +76,7 @@
           <section class="mdc-card__supporting-text">
           </section>
           <section class="mdc-card__actions">
-            <button class="mdc-button mdc-button--compact ac__collapse-seat" data-node-id="${ id }">Toggle</button>
+            <button class="mdc-button mdc-button--compact ac__collapse-seat">Toggle</button>
             <!--<button class="mdc-button mdc-button--compact mdc-button--primary mdc-card__action ac__add-seat">Add Seat</button>-->
             <!--<button class="mdc-button mdc-button--compact mdc-card__action">Remove Seat</button>-->
           </section>
@@ -99,21 +102,18 @@
         d.y = d.depth * nodeHeight;
       });
 
-      let node = d3.select('.chart-container')
-        .append('div')
-        .attr('class', 'chart-nodes')
-        .selectAll('.chart-nodes')
+      let node = acChartNodes.selectAll('.ac-chart__node')
         .data(nodes);
 
       let nodeEnter = node.enter()
         .append('div')
         .style('height', '134px')
         .style('width', '234px')
-        .attr('class', 'chart-nodes__nodes')
+        .attr('class', 'ac-chart__node')
 //        .attr('style', d => `transform: translate(${source.x * 2 - 117}px, ${source.y * 1.3 - 67}px`)
         .attr('style', d => `transform: translate(${source.x}px, ${source.y}px`)
         .html(d => generateNode(d.data._id, d.data.name))
-        .on('click', collapseSeatEventHandler);
+        .on('click', seatEventHandler);
 
       let nodeUpdate = nodeEnter.merge(node);
 
@@ -131,10 +131,7 @@
       /**
        * Links
        */
-      let link = d3.select('.chart-container')
-        .append('svg')
-        .attr('class', 'chart-lines')
-        .selectAll('line')
+      let link = acChartLinks.selectAll('.ac-chart__link')
         .data(links);
 
       let linkEnter = link.enter()
@@ -148,6 +145,7 @@
           ];
           return generateLine(coordinates);
         })
+        .attr('class', 'ac-chart__link')
         .attr('fill', 'none')
         .attr('stroke-width', 2)
         .attr('stroke', '#dcdcdc');
@@ -181,7 +179,9 @@
         .remove();
     }
 
-
+    function seatEventHandler(d) {
+      collapseSeatEventHandler(d);
+    }
 
 //    document.onclick = e => {
 //      addSeatEventHandler(e);
