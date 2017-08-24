@@ -38,6 +38,54 @@
     .ac-chart__node {
       position: absolute;
     }
+    [data-depth='0'] {
+      z-index: 15;
+    }
+    [data-depth='1'] {
+      z-index: 14;
+    }
+    [data-depth='2'] {
+      z-index: 13;
+    }
+    [data-depth='3'] {
+      z-index: 12;
+    }
+    [data-depth='4'] {
+      z-index: 11;
+    }
+    [data-depth='5'] {
+      z-index: 10;
+    }
+    [data-depth='6'] {
+      z-index: 9;
+    }
+    [data-depth='7'] {
+      z-index: 8;
+    }
+    [data-depth='8'] {
+      z-index: 7;
+    }
+    [data-depth='9'] {
+      z-index: 6;
+    }
+    [data-depth='10'] {
+      z-index: 5;
+    }
+    [data-depth='11'] {
+      z-index: 4;
+    }
+    [data-depth='12'] {
+      z-index: 3;
+    }
+    [data-depth='13'] {
+      z-index: 2;
+    }
+    [data-depth='14'] {
+      z-index: 1;
+    }
+    [data-depth='15'] {
+      z-index: 0;
+    }
   </style>
 </head>
 <body>
@@ -46,32 +94,61 @@
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.10.0/d3.min.js"></script>
+  <!--<script src="https://d3js.org/d3.v4.min.js"></script>-->
   <script>
     const width = document.getElementsByTagName('main')[0].clientWidth;
     const height = document.getElementsByTagName('main')[0].clientHeight;
-    const treemap = d3.tree().size([width, height]);
-    const acChart = d3.select('.ac-chart');
-    const acChartNodes = acChart.append('div').attr('class', 'ac-chart_nodes');
-    const acChartLinks = acChart.append('svg').attr('class', 'ac-chart__links');
-    const duration = 600;
+    const animationDuration = 600;
+    const animationEasement = d3.easePoly;
     const nodeWidth = 234;
     const nodeHeight = 134;
+    const nodePadding = 5;
+    const linkHeight = 50;
+    const nodePositioningHelper = {
+      horizontalCenter: nodeWidth / 2,
+      verticalCenter: nodeHeight / 2,
+      topCenter: 0 + nodePadding,
+      bottomCenter: nodeHeight - nodePadding,
+      linkHeight: 50
+    };
+    const treemap = d3.tree()
+      .nodeSize([nodeWidth * 1.2, nodeHeight * 1.3]) // multiplier creates buffer between nodes
+      .separation((a, b) => a.parent == b.parent ? 1 : 2);
+    const acChart = d3.select('.ac-chart');
+    const acChartNodes = acChart.append('div').attr('class', 'ac-chart__nodes');
+    const acChartLinks = acChart.append('svg').attr('class', 'ac-chart__links');
     let root = [];
 
 
     d3.json('./data/jedi.json', data => {
       root = d3.stratify()
-        .id(d => d._id)
+        .id(d => {
+          console.log(d);
+          return d._id;
+        })
         .parentId(d => d.parentId)
         (data);
+
+      root._x = (width / 2) - nodePositioningHelper.horizontalCenter;
+      root._y = 0;
+
+//      function collapse(d) {
+//        if (d.children) {
+//          d._children = d.children;
+//          d._children.forEach(collapse);
+//          d.children = null;
+//        }
+//      }
+//      root.children.forEach(collapse);
+
       renderChart(root);
     });
 
-    function generateNode(id, name) {
+    function generateNode(d) {
       return `
         <div class="mdc-card">
           <section class="mdc-card__primary">
-            <h3 class="mdc-card__title mdc-card__title--large">${ name }</h3>
+            <h3 class="mdc-card__title mdc-card__title--large">${ d.data.name }</h3>
           </section>
           <section class="mdc-card__supporting-text">
           </section>
@@ -91,57 +168,68 @@
     }
 
     function renderChart(source) {
-      let treeData = treemap(source);
+      let treeData = treemap(root);
       let nodes = treeData.descendants();
       let links = treeData.descendants().slice(1);
 
       /**
        * Nodes
        */
+//      let nodeCountByDepth = nodes.reduce((allNodes, node) => {
+//        // find count of nodes for each depth
+//        if (node.depth in allNodes) {
+//          allNodes[node.depth]++;
+//        } else {
+//          allNodes[node.depth] = 1;
+//        }
+//        return allNodes;
+//      }, {});
       nodes.forEach(d => {
-        d.y = d.depth * nodeHeight;
+        // normalize node position
+        d.x = d.x + (width / 2) - nodePositioningHelper.horizontalCenter;
       });
 
-      let node = acChartNodes.selectAll('.ac-chart__node')
-        .data(nodes);
+      let node = acChartNodes.selectAll('div.ac-chart__node')
+        .data(nodes, d => d.data._id);
 
       let nodeEnter = node.enter()
         .append('div')
-        .style('height', '134px')
-        .style('width', '234px')
+        .style('width', nodeWidth)
+        .style('height', nodeHeight)
         .attr('class', 'ac-chart__node')
-//        .attr('style', d => `transform: translate(${source.x * 2 - 117}px, ${source.y * 1.3 - 67}px`)
-        .attr('style', d => `transform: translate(${source.x}px, ${source.y}px`)
-        .html(d => generateNode(d.data._id, d.data.name))
-        .on('click', seatEventHandler);
+        .attr('data-depth', d => d.depth)
+        .attr('style', d => `transform: translate(${source._x}px, ${source._y}px`)
+        .on('click', seatEventHandler)
+        .html(d => generateNode(d));
 
       let nodeUpdate = nodeEnter.merge(node);
 
       nodeUpdate.transition()
-        .duration(duration)
-        .attr('style', d => `transform: translate(${d.x * 2 - 117}px, ${d.y * 1.3 - 67}px`);
+        .ease(animationEasement)
+        .duration(animationDuration)
+        .attr('style', d => `transform: translate(${d.x}px, ${d.y}px`);
 
       let nodeExit = node.exit()
         .transition()
-        .duration(duration)
-//        .attr('style', d => `transform: translate(${source.x * 2 - 117}px, ${source.y * 1.3 - 67}px`)
-        .attr('style', d => `transform: translate(${d.parent.x * 2 - 117}px, ${d.parent.y * 1.3 - 67}px`)
+        .ease(animationEasement)
+        .duration(animationDuration)
+        .attr('style', d => `transform: translate(${source.x}px, ${source.y}px`)
         .remove();
 
       /**
        * Links
        */
       let link = acChartLinks.selectAll('.ac-chart__link')
-        .data(links);
+        .data(links, d => d.data._id);
 
       let linkEnter = link.enter()
         .insert('path', 'g')
         .attr('d', d => {
           const coordinates = [
-            {x: source.x * 2, y: source.y * 1.3 + 62},
-            {x: source.x * 2, y: source.y * 1.3 + 91},
-            {x: source.x * 2, y: source.y * 1.3 - 91},
-            {x: source.x * 2, y: source.y * 1.3 - 62}
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y}
           ];
           return generateLine(coordinates);
         })
@@ -153,36 +241,58 @@
       let linkUpdate = linkEnter.merge(link);
 
       linkUpdate.transition()
-        .duration(duration)
+        .ease(animationEasement)
+        .duration(animationDuration)
         .attr('d', d => {
           const coordinates = [
-            {x: d.parent.x * 2, y: d.parent.y * 1.3 + 62},
-            {x: d.parent.x * 2, y: d.parent.y * 1.3 + 91},
-            {x: d.x * 2, y: d.y * 1.3 - 91},
-            {x: d.x * 2, y: d.y * 1.3 - 62}
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y + nodePositioningHelper.bottomCenter},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y + nodePositioningHelper.bottomCenter + (nodePositioningHelper.linkHeight / 2)},
+            {x: d.x + nodePositioningHelper.horizontalCenter, y: d.y + nodePositioningHelper.topCenter - (nodePositioningHelper.linkHeight / 2)},
+            {x: d.x + nodePositioningHelper.horizontalCenter, y: d.y + nodePositioningHelper.topCenter}
           ];
           return generateLine(coordinates);
         });
 
       let linkExit = link.exit()
         .transition()
-        .duration(duration)
+        .ease(animationEasement)
+        .duration(animationDuration)
         .attr('d', d => {
           const coordinates = [
-            {x: source.x * 2, y: source.y * 1.3 + 62},
-            {x: source.x * 2, y: source.y * 1.3 + 91},
-            {x: d.parent.x * 2, y: d.parent.y * 1.3 - 91},
-            {x: d.parent.x * 2, y: d.parent.y * 1.3 - 62}
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
+            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y}
           ];
           return generateLine(coordinates);
         })
         .remove();
+
+      nodes.forEach(d => {
+        d._x = d.x;
+        d._y = d.y;
+      });
+
     }
 
     function seatEventHandler(d) {
       collapseSeatEventHandler(d);
     }
 
+    function collapseSeatEventHandler(d) {
+      console.log(d);
+      if (d3.event.target.getAttribute('class') && d3.event.target.getAttribute('class').indexOf('ac__collapse-seat') >= 0) {
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        } else {
+          d.children = d._children;
+          d._children = null;
+        }
+        console.log(d);
+        renderChart(d);
+      }
+    }
 //    document.onclick = e => {
 //      addSeatEventHandler(e);
 //      removeSeatEventHandler(e);
@@ -198,29 +308,6 @@
     function removeSeatEventHandler(e) {
       if (e.target.getAttribute('class') && e.target.getAttribute('class').indexOf('ac__remove-seat') >= 0) {
         console.log('remove');
-      }
-    }
-
-    function collapseSeatEventHandler(d) {
-      if (d3.event.target.getAttribute('class') && d3.event.target.getAttribute('class').indexOf('ac__collapse-seat') >= 0) {
-        if (d.children) {
-          d._children = d.children;
-          d.children = null;
-        } else {
-          d.children = d._children;
-          d._children = null;
-        }
-        renderChart(d);
-//        collapseNodes(root);
-//        renderChart(root);
-      }
-    }
-
-    function collapseNodes(node) {
-      if (node.children) {
-        node._children = node.children;
-        node._children.forEach(collapseNodes)
-        node.children = null
       }
     }
   </script>
