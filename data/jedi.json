@@ -5,13 +5,13 @@
     "parentId": null
   },
   {
-    "_id": 1,
-    "name": "Dooku",
+    "_id": 2,
+    "name": "Kit Fisto",
     "parentId": 0
   },
   {
-    "_id": 2,
-    "name": "Kit Fisto",
+    "_id": 1,
+    "name": "Dooku",
     "parentId": 0
   },
   {

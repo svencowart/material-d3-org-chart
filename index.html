@@ -94,7 +94,6 @@
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.10.0/d3.min.js"></script>
-  <!--<script src="https://d3js.org/d3.v4.min.js"></script>-->
   <script>
     const width = document.getElementsByTagName('main')[0].clientWidth;
     const height = document.getElementsByTagName('main')[0].clientHeight;
@@ -103,7 +102,6 @@
     const nodeWidth = 234;
     const nodeHeight = 134;
     const nodePadding = 5;
-    const linkHeight = 50;
     const nodePositioningHelper = {
       horizontalCenter: nodeWidth / 2,
       verticalCenter: nodeHeight / 2,
@@ -111,7 +109,7 @@
       bottomCenter: nodeHeight - nodePadding,
       linkHeight: 50
     };
-    const treemap = d3.tree()
+    const treemapDefault = d3.tree()
       .nodeSize([nodeWidth * 1.2, nodeHeight * 1.3]) // multiplier creates buffer between nodes
       .separation((a, b) => a.parent == b.parent ? 1 : 2);
     const acChart = d3.select('.ac-chart');
@@ -119,18 +117,11 @@
     const acChartLinks = acChart.append('svg').attr('class', 'ac-chart__links');
     let root = [];
 
-
     d3.json('./data/jedi.json', data => {
       root = d3.stratify()
-        .id(d => {
-          console.log(d);
-          return d._id;
-        })
+        .id(d => d._id)
         .parentId(d => d.parentId)
         (data);
-
-      root._x = (width / 2) - nodePositioningHelper.horizontalCenter;
-      root._y = 0;
 
 //      function collapse(d) {
 //        if (d.children) {
@@ -140,34 +131,21 @@
 //        }
 //      }
 //      root.children.forEach(collapse);
-
       renderChart(root);
     });
 
-    function generateNode(d) {
-      return `
-        <div class="mdc-card">
-          <section class="mdc-card__primary">
-            <h3 class="mdc-card__title mdc-card__title--large">${ d.data.name }</h3>
-          </section>
-          <section class="mdc-card__supporting-text">
-          </section>
-          <section class="mdc-card__actions">
-            <button class="mdc-button mdc-button--compact ac__collapse-seat">Toggle</button>
-            <!--<button class="mdc-button mdc-button--compact mdc-button--primary mdc-card__action ac__add-seat">Add Seat</button>-->
-            <!--<button class="mdc-button mdc-button--compact mdc-card__action">Remove Seat</button>-->
-          </section>
-        </div>
-      `;
-    }
-
-    function generateLine(path) {
-      return (d3.line()
-        .x(d => d.x)
-        .y(d => d.y))(path);
-    }
-
     function renderChart(source) {
+      treemapDefault(root); // used to find horizontal width
+      let minMax = findXMinMax(root, root.x, root.y);
+      const chartWidth = (minMax.max - minMax.min) + nodeWidth;
+
+      root._x = (chartWidth / 2) - nodePositioningHelper.horizontalCenter;
+      root._y = 0;
+
+      let treemap = d3.tree()
+        .size([chartWidth, 1])
+        .nodeSize([nodeWidth * 1.2, nodeHeight * 1.3]) // multiplier creates buffer between nodes
+        .separation((a, b) => a.parent == b.parent ? 1 : 2);
       let treeData = treemap(root);
       let nodes = treeData.descendants();
       let links = treeData.descendants().slice(1);
@@ -175,18 +153,9 @@
       /**
        * Nodes
        */
-//      let nodeCountByDepth = nodes.reduce((allNodes, node) => {
-//        // find count of nodes for each depth
-//        if (node.depth in allNodes) {
-//          allNodes[node.depth]++;
-//        } else {
-//          allNodes[node.depth] = 1;
-//        }
-//        return allNodes;
-//      }, {});
       nodes.forEach(d => {
         // normalize node position
-        d.x = d.x + (width / 2) - nodePositioningHelper.horizontalCenter;
+        d.x = d.x + (chartWidth / 2) - nodePositioningHelper.horizontalCenter;
       });
 
       let node = acChartNodes.selectAll('div.ac-chart__node')
@@ -226,10 +195,10 @@
         .insert('path', 'g')
         .attr('d', d => {
           const coordinates = [
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y}
+            {x: source._x + nodePositioningHelper.horizontalCenter, y: source._y},
+            {x: source._x + nodePositioningHelper.horizontalCenter, y: source._y},
+            {x: source._x + nodePositioningHelper.horizontalCenter, y: source._y},
+            {x: source._x + nodePositioningHelper.horizontalCenter, y: source._y}
           ];
           return generateLine(coordinates);
         })
@@ -259,10 +228,10 @@
         .duration(animationDuration)
         .attr('d', d => {
           const coordinates = [
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y},
-            {x: d.parent.x + nodePositioningHelper.horizontalCenter, y: d.parent.y}
+            {x: source.x + nodePositioningHelper.horizontalCenter, y: source.y},
+            {x: source.x + nodePositioningHelper.horizontalCenter, y: source.y},
+            {x: source.x + nodePositioningHelper.horizontalCenter, y: source.y},
+            {x: source.x + nodePositioningHelper.horizontalCenter, y: source.y}
           ];
           return generateLine(coordinates);
         })
@@ -272,7 +241,39 @@
         d._x = d.x;
         d._y = d.y;
       });
+    }
 
+    function findXMinMax(node, min, max) {
+      const { children = [] } = node;
+      return children.reduce((result, childNode)=> {
+        if (childNode.children) {
+          return findXMinMax(childNode, result.min, result.max);
+        }
+        return { min: Math.min(childNode.x, result.min), max: Math.max(childNode.x, result.max) }
+      }, { min, max });
+    }
+
+    function generateNode(d) {
+      return `
+        <div class="mdc-card">
+          <section class="mdc-card__primary">
+            <h3 class="mdc-card__title mdc-card__title--large">${ d.data.name }</h3>
+          </section>
+          <section class="mdc-card__supporting-text">
+          </section>
+          <section class="mdc-card__actions">
+            <button class="mdc-button mdc-button--compact ac__collapse-seat">Toggle</button>
+            <!--<button class="mdc-button mdc-button--compact mdc-button--primary mdc-card__action ac__add-seat">Add Seat</button>-->
+            <!--<button class="mdc-button mdc-button--compact mdc-card__action">Remove Seat</button>-->
+          </section>
+        </div>
+      `;
+    }
+
+    function generateLine(path) {
+      return (d3.line()
+        .x(d => d.x)
+        .y(d => d.y))(path);
     }
 
     function seatEventHandler(d) {
@@ -280,7 +281,6 @@
     }
 
     function collapseSeatEventHandler(d) {
-      console.log(d);
       if (d3.event.target.getAttribute('class') && d3.event.target.getAttribute('class').indexOf('ac__collapse-seat') >= 0) {
         if (d.children) {
           d._children = d.children;
@@ -289,7 +289,6 @@
           d.children = d._children;
           d._children = null;
         }
-        console.log(d);
         renderChart(d);
       }
     }
